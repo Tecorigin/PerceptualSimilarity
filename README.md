@@ -41,6 +41,7 @@ More thorough information about variants is below. This repository contains our 
 - Install PyTorch 1.0+ and torchvision fom http://pytorch.org
 
 ```bash
+pip install lpips-0.1.4-py3-none-any.whl
 pip install -r requirements.txt
 ```
 - Clone this repo:
