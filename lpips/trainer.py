@@ -10,6 +10,8 @@ from scipy.ndimage import zoom
 from tqdm import tqdm
 import lpips
 import os
+import torch.distributed as dist
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 
 class Trainer():
@@ -73,10 +75,23 @@ class Trainer():
             self.net.eval()
 
         if(use_gpu):
-            self.net.to(gpu_ids[0])
-            self.net = torch.nn.DataParallel(self.net, device_ids=gpu_ids)
+            self.rank = int(os.environ.get("LOCAL_RANK", -1))
+            if torch.cuda.is_available():
+                device = torch.device('cuda:%d' % self.rank if self.rank >= 0 else gpu_ids[0])
+                torch.cuda.set_device(device)
+                torch.distributed.init_process_group(backend="nccl", init_method="env://")
+            elif torch.sdaa.is_available():
+                device = torch.device('sdaa:%d' % self.rank if self.rank >= 0 else gpu_ids[0])
+                torch.sdaa.set_device(device)
+                torch.distributed.init_process_group(backend="tccl", init_method="env://")
+            else:
+                print('Warning: No GPU available, using CPU instead.')
+                device = torch.device('cpu')
+            self.device = device
+            self.net.to(device)
+            self.net = DDP(self.net)
             if(self.is_train):
-                self.rankLoss = self.rankLoss.to(device=gpu_ids[0]) # just put this on GPU0
+                self.rankLoss = self.rankLoss.to(device) # just put this on GPU0
 
         if(printNet):
             print('---------- Networks initialized -------------')
@@ -98,6 +113,7 @@ class Trainer():
         self.forward_train()
         self.optimizer_net.zero_grad()
         self.backward_train()
+        torch.nn.utils.clip_grad_norm_(self.net.parameters(), max_norm=1.0)  # 裁剪梯度
         self.optimizer_net.step()
         self.clamp_weights()
 
@@ -113,12 +129,15 @@ class Trainer():
         self.input_judge = data['judge']
 
         if(self.use_gpu):
-            self.input_ref = self.input_ref.to(device=self.gpu_ids[0])
-            self.input_p0 = self.input_p0.to(device=self.gpu_ids[0])
-            self.input_p1 = self.input_p1.to(device=self.gpu_ids[0])
-            self.input_judge = self.input_judge.to(device=self.gpu_ids[0])
+            self.input_ref = self.input_ref.to(device=self.device)
+            self.input_p0 = self.input_p0.to(device=self.device)
+            self.input_p1 = self.input_p1.to(device=self.device)
+            self.input_judge = self.input_judge.to(device=self.device)
 
         self.var_ref = Variable(self.input_ref,requires_grad=True)
+        # 在trainer.py的forward_train()中添加
+        assert not torch.isnan(self.var_ref).any(), "输入包含NaN!"
+        assert not torch.isinf(self.var_ref).any(), "输入包含Inf!"
         self.var_p0 = Variable(self.input_p0,requires_grad=True)
         self.var_p1 = Variable(self.input_p1,requires_grad=True)
 
@@ -205,7 +224,7 @@ class Trainer():
         np.savetxt(os.path.join(self.save_dir, 'done_flag'),[flag,],fmt='%i')
 
 
-def score_2afc_dataset(data_loader, func, name=''):
+def score_2afc_dataset(data_loader, func, name='', device=torch.device('cpu')):
     ''' Function computes Two Alternative Forced Choice (2AFC) score using
         distance function 'func' in dataset 'data_loader'
     INPUTS
@@ -229,6 +248,9 @@ def score_2afc_dataset(data_loader, func, name=''):
     gts = []
 
     for data in tqdm(data_loader.load_data(), desc=name):
+        data['ref'] = data['ref'].to(device)
+        data['p0'] = data['p0'].to(device)
+        data['p1'] = data['p1'].to(device)
         d0s+=func(data['ref'],data['p0']).data.cpu().numpy().flatten().tolist()
         d1s+=func(data['ref'],data['p1']).data.cpu().numpy().flatten().tolist()
         gts+=data['judge'].cpu().numpy().flatten().tolist()
@@ -240,7 +262,7 @@ def score_2afc_dataset(data_loader, func, name=''):
 
     return(np.mean(scores), dict(d0s=d0s,d1s=d1s,gts=gts,scores=scores))
 
-def score_jnd_dataset(data_loader, func, name=''):
+def score_jnd_dataset(data_loader, func, name='', device=torch.device('cpu')):
     ''' Function computes JND score using distance function 'func' in dataset 'data_loader'
     INPUTS
         data_loader - CustomDatasetDataLoader object - contains a JNDDataset inside
@@ -259,6 +281,9 @@ def score_jnd_dataset(data_loader, func, name=''):
     gts = []
 
     for data in tqdm(data_loader.load_data(), desc=name):
+        data['p0'] = data['p0'].to(device)
+        data['p1'] = data['p1'].to(device)
+        data['same'] = data['same'].to(device)
         ds+=func(data['p0'],data['p1']).data.cpu().numpy().tolist()
         gts+=data['same'].cpu().numpy().flatten().tolist()
 

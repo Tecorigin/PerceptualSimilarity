@@ -1,5 +1,7 @@
 import torch.utils.data
 from data.base_data_loader import BaseDataLoader
+import torch
+import torch.distributed as dist
 import os
 
 def CreateDataset(dataroots,dataset_mode='2afc',load_size=64,):
@@ -26,11 +28,15 @@ class CustomDatasetDataLoader(BaseDataLoader):
             datafolders = [datafolders,]
         data_root_folders = [os.path.join(dataroot,datafolder) for datafolder in datafolders]
         self.dataset = CreateDataset(data_root_folders,dataset_mode=dataset_mode,load_size=load_size)
+        train_sampler = torch.utils.data.distributed.DistributedSampler(self.dataset) if dist.is_initialized() else None
+        print('train_sampler:', train_sampler)
         self.dataloader = torch.utils.data.DataLoader(
             self.dataset,
             batch_size=batch_size,
-            shuffle=not serial_batches,
-            num_workers=int(nThreads))
+            shuffle= (train_sampler is None) and not serial_batches,
+            num_workers=int(nThreads),
+            sampler=train_sampler
+        )
 
     def load_data(self):
         return self.dataloader

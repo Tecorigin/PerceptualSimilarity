@@ -2,7 +2,6 @@ import numpy as np
 import lpips
 from data import data_loader as dl
 import argparse
-from IPython import embed
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset_mode', type=str, default='2afc', help='[2afc,jnd]')
@@ -43,9 +42,9 @@ for dataset in opt.datasets:
 
 	# evaluate model on data
 	if(opt.dataset_mode=='2afc'):
-		(score, results_verbose) = lpips.score_2afc_dataset(data_loader, trainer.forward, name=dataset)
+		(score, results_verbose) = lpips.score_2afc_dataset(data_loader, trainer.forward, name=dataset, device=trainer.device)
 	elif(opt.dataset_mode=='jnd'):
-		(score, results_verbose) = lpips.score_jnd_dataset(data_loader, trainer.forward, name=dataset)
+		(score, results_verbose) = lpips.score_jnd_dataset(data_loader, trainer.forward, name=dataset, device=trainer.device)
 
 	# print results
 	print('  Dataset [%s]: %.2f'%(dataset,100.*score))

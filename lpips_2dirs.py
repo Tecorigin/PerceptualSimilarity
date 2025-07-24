@@ -1,6 +1,7 @@
 import argparse
 import os
 import lpips
+import torch
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('-d0','--dir0', type=str, default='./imgs/ex_dir0')
@@ -14,7 +15,13 @@ opt = parser.parse_args()
 ## Initializing the model
 loss_fn = lpips.LPIPS(net='alex',version=opt.version)
 if(opt.use_gpu):
-	loss_fn.cuda()
+	if torch.cuda.is_available():
+		loss_fn.cuda()
+	elif torch.sdaa.is_available():
+		loss_fn.sdaa()
+	else:
+		print('Warning: No GPU available, using CPU instead.')
+		loss_fn.cpu()
 
 # crawl directories
 f = open(opt.out,'w')
@@ -27,8 +34,12 @@ for file in files:
 		img1 = lpips.im2tensor(lpips.load_image(os.path.join(opt.dir1,file)))
 
 		if(opt.use_gpu):
-			img0 = img0.cuda()
-			img1 = img1.cuda()
+			if torch.cuda.is_available():
+				img0 = img0.cuda()
+				img1 = img1.cuda()
+			elif torch.sdaa.is_available():
+				img0 = img0.sdaa()
+				img1 = img1.sdaa()
 
 		# Compute distance
 		dist01 = loss_fn.forward(img0,img1)

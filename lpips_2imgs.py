@@ -1,5 +1,6 @@
 import argparse
 import lpips
+import torch
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('-p0','--path0', type=str, default='./imgs/ex_ref.png')
@@ -13,15 +14,27 @@ opt = parser.parse_args()
 loss_fn = lpips.LPIPS(net='alex',version=opt.version)
 
 if(opt.use_gpu):
-	loss_fn.cuda()
+	if torch.cuda.is_available():
+		loss_fn.cuda()
+	elif torch.sdaa.is_available():
+		loss_fn.sdaa()
+	else:
+		print('Warning: No GPU available, using CPU instead.')
+		loss_fn.cpu()
 
 # Load images
 img0 = lpips.im2tensor(lpips.load_image(opt.path0)) # RGB image from [-1,1]
 img1 = lpips.im2tensor(lpips.load_image(opt.path1))
 
 if(opt.use_gpu):
-	img0 = img0.cuda()
-	img1 = img1.cuda()
+	if torch.cuda.is_available():
+		img0 = img0.cuda()
+		img1 = img1.cuda()
+	elif torch.sdaa.is_available():
+		img0 = img0.sdaa()
+		img1 = img1.sdaa()
+	else:
+		print('Warning: No GPU available, using CPU instead.')
 
 # Compute distance
 dist01 = loss_fn.forward(img0, img1)

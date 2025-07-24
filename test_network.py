@@ -1,6 +1,5 @@
 import torch
 import lpips
-from IPython import embed
 
 use_gpu = False         # Whether to use GPU
 spatial = True         # Return a spatial map of perceptual distance.

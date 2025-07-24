@@ -8,7 +8,6 @@ import lpips
 from data import data_loader as dl
 import argparse
 from util.visualizer import Visualizer
-from IPython import embed
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--datasets', type=str, nargs='+', default=['train/traditional','train/cnn','train/mix'], help='datasets to train on: [train/traditional],[train/cnn],[train/mix],[val/traditional],[val/cnn],[val/color],[val/deblur],[val/frameinterp],[val/superres]')
@@ -21,8 +20,8 @@ parser.add_argument('--gpu_ids', type=int, nargs='+', default=[0], help='gpus to
 parser.add_argument('--nThreads', type=int, default=4, help='number of threads to use in data loader')
 parser.add_argument('--nepoch', type=int, default=5, help='# epochs at base learning rate')
 parser.add_argument('--nepoch_decay', type=int, default=5, help='# additional epochs at linearly learning rate')
-parser.add_argument('--display_freq', type=int, default=5000, help='frequency (in instances) of showing training results on screen')
-parser.add_argument('--print_freq', type=int, default=5000, help='frequency (in instances) of showing training results on console')
+parser.add_argument('--display_freq', type=int, default=500, help='frequency (in instances) of showing training results on screen')
+parser.add_argument('--print_freq', type=int, default=500, help='frequency (in instances) of showing training results on console')
 parser.add_argument('--save_latest_freq', type=int, default=20000, help='frequency (in instances) of saving the latest results')
 parser.add_argument('--save_epoch_freq', type=int, default=1, help='frequency of saving checkpoints at the end of epochs')
 parser.add_argument('--display_id', type=int, default=0, help='window id of the visdom display, [0] for no displaying')
@@ -40,6 +39,20 @@ opt = parser.parse_args()
 opt.save_dir = os.path.join(opt.checkpoints_dir,opt.name)
 if(not os.path.exists(opt.save_dir)):
     os.mkdir(opt.save_dir)
+
+# torch.autograd.set_detect_anomaly(True)  # 开启详细错误检测
+# torch.use_deterministic_algorithms(True) # 禁止非确定性操作
+
+def random_seed(seed=42, rank=0):
+    import random
+    import numpy as np
+    import torch
+    torch.manual_seed(seed + rank)
+    np.random.seed(seed + rank)
+    random.seed(seed + rank)
+
+
+random_seed(42, 0)
 
 # initialize model
 trainer = lpips.Trainer()

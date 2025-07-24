@@ -104,7 +104,7 @@ class LPIPS(nn.Module):
 
                 if(verbose):
                     print('Loading model from: %s'%model_path)
-                self.load_state_dict(torch.load(model_path, map_location='cpu'), strict=False)          
+                self.load_state_dict(torch.load(model_path, map_location='cpu', weights_only=False), strict=False)          
 
         if(eval_mode):
             self.eval()
@@ -151,7 +151,7 @@ class ScalingLayer(nn.Module):
         self.register_buffer('scale', torch.Tensor([.458,.448,.450])[None,:,None,None])
 
     def forward(self, inp):
-        return (inp - self.shift) / self.scale
+        return (inp - self.shift.clone()) / self.scale.clone()  # 显式复制
 
 
 class NetLinLayer(nn.Module):
@@ -215,7 +215,10 @@ class L2(FakeNet):
                 lpips.tensor2np(lpips.tensor2tensorlab(in1.data,to_norm=False)), range=100.).astype('float')
             ret_var = Variable( torch.Tensor((value,) ) )
             if(self.use_gpu):
-                ret_var = ret_var.cuda()
+                if torch.cuda.is_available():
+                    ret_var = ret_var.cuda()
+                elif torch.sdaa.is_available():
+                    ret_var = ret_var.sdaa()
             return ret_var
 
 class DSSIM(FakeNet):
@@ -230,7 +233,10 @@ class DSSIM(FakeNet):
                 lpips.tensor2np(lpips.tensor2tensorlab(in1.data,to_norm=False)), range=100.).astype('float')
         ret_var = Variable( torch.Tensor((value,) ) )
         if(self.use_gpu):
-            ret_var = ret_var.cuda()
+            if torch.cuda.is_available():
+                ret_var = ret_var.cuda()
+            elif torch.sdaa.is_available():
+                ret_var = ret_var.sdaa()
         return ret_var
 
 def print_network(net):

@@ -14,14 +14,24 @@ opt = parser.parse_args()
 
 loss_fn = lpips.LPIPS(net='vgg')
 if(opt.use_gpu):
-    loss_fn.cuda()
+    if torch.cuda.is_available():
+        loss_fn.cuda()
+    elif torch.sdaa.is_available():
+        print('Warning: No CUDA available, using SDAA instead.')
+        loss_fn.sdaa()
+    else:
+        print('Warning: No GPU available, using CPU instead.')
 
 ref = lpips.im2tensor(lpips.load_image(opt.ref_path))
 pred = Variable(lpips.im2tensor(lpips.load_image(opt.pred_path)), requires_grad=True)
 if(opt.use_gpu):
     with torch.no_grad():
-        ref = ref.cuda()
-        pred = pred.cuda()
+        if torch.cuda.is_available():
+            ref = ref.cuda()
+            pred = pred.cuda()
+        elif torch.sdaa.is_available():
+            ref = ref.sdaa()
+            pred = pred.sdaa()
 
 optimizer = torch.optim.Adam([pred,], lr=1e-3, betas=(0.9, 0.999))
 
